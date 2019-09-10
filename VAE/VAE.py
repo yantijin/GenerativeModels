@@ -14,31 +14,6 @@ X: 输入数据
 
 def GaussianEncoder(X, n_hidden, n_output, dropout):
     with tf.variable_scope('GaussianEncoder'):
-        # w_0 = tf.contrib.layers.variance_scaling_initializer()
-        # b_0 = tf.constant_initializer(0.)
-        #
-        # # 1st layer
-        # w_1 = tf.get_variable('w_1', shape=[X.get_shape()[1], n_hidden], initializer=w_0)
-        # b_1 = tf.get_variable('b_1', shape=[n_hidden], initializer=b_0)
-        # h1 = tf.matmul(X, w_2) + b_1
-        # h1 = tf.nn.elu(h1)
-        # h1 = tf.nn.dropout(h1, keep_prob=dropout)
-        #
-        # # 2nd layer
-        # w_2 = tf.get_variable('w_2', shape=[h1.get_shape()[1], n_hidden], initializer=w_0)
-        # b_2 = tf.get_variable('b_2', shape=[n_hidden], initializer=b_0)
-        # h2 = tf.matmul(h1, w_2) + b_2
-        # h2 = tf.nn.tanh(h2)
-        # h2 = tf.nn.dropout(h2, keep_prob=dropout)
-        #
-        # # output layer
-        # w_o = tf.get_variable('w_o', shape=[h2.get_shape()[1], 2 * n_output], initializer=w_0)
-        # b_o = tf.get_variable('b_o', shape=[2 * n_output], initializer=b_0)
-        #
-        # total_Out = tf.matmul(h2, w_o) + b_o
-        #
-        # mean = total_Out[:, :n_output]
-        # logstd = tf.nn.softplus(total_Out[:, n_output:]) + 1e-6
         layer1 = fcLayer(X, 'layer1', n_hidden, activation_func=tf.nn.elu)
         layer2 = fcLayer(layer1, 'layer2', n_hidden, activation_func=tf.nn.tanh)
 
@@ -58,29 +33,6 @@ dropout 丢弃率
 
 def Bernoulli_decoder(Z, n_hidden, n_output, dropout):
     with tf.variable_scope('Bernoulli_decoder'):
-        # w_0 = tf.contrib.layers.variance_scaling_initializer()
-        # b_0 = tf.constant_initializer(0.)
-        #
-        # # 1st layer
-        # w_1 = tf.get_variable('w_1', shape=[Z.get_shape()[1], n_hidden], initializer=w_0)
-        # b_1 = tf.get_variable('b_1', shape=[n_hidden], initializer=b_0)
-        # h1 = tf.matmul(Z, w_1) + b_1
-        # h1 = tf.nn.tanh(h1)
-        # h1 = tf.nn.dropout(h1, keep_prob=dropout)
-        #
-        # # 2nd layer
-        # w_2 = tf.get_variable('w_2', shape=[h1.get_shape()[1], n_hidden], initializer=w_0)
-        # b_2 = tf.get_variable('b_2', shape=[n_hidden], initializer=b_0)
-        # h2 = tf.matmul(h1, w_2) + b_2
-        # h2 = tf.nn.elu(h2)
-        # h2 = tf.nn.dropout(h2, keep_prob=dropout)
-        #
-        # # output layer
-        # w_o = tf.get_variable('w_o', shape=[h2.get_shape()[1], n_output], initializer=w_0)
-        # b_o = tf.get_variable('b_o', shape=[n_output], initializer=b_0)
-        #
-        # total_Out = tf.matmul(h2, w_o) + b_o
-        # y = tf.sigmoid(total_Out)
         layer1 = fcLayer(Z, 'layer1', n_hidden, activation_func=tf.nn.tanh)
         layer2 = fcLayer(layer1, 'layer2', n_hidden, activation_func=tf.nn.elu)
 
@@ -137,10 +89,10 @@ def loss(X, dimX, n_hidden, n_output, dropout, L=1):
         tf.reduce_sum(tf.square(std)
                       + tf.square(mean) - 1
                       - tf.log(tf.square(std) + 1e-8), 1))
-
+    second_term = tf.reduce_mean(tf.reduce_sum(X * tf.log(y) + (1 - X) * tf.log(1 - y), 1))
     entropy_term = tf.losses.mean_squared_error(X, y)
-    elbo = entropy_term-KL
-    return elbo, KL, entropy_term, y
+    elbo = second_term-KL
+    return elbo, KL, second_term, y
 
 
 def main():
@@ -162,7 +114,7 @@ def main():
 
     X = tf.placeholder(tf.float32, shape=[None, dim_img], name='Mnist')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-    ELBO, KL_divergence, marginal_likelihood, Xhat = GauBernou_VAE(X, dim_img, n_hidden, dim_z, keep_prob)
+    ELBO, KL_divergence, marginal_likelihood, Xhat = loss(X, dim_img, n_hidden, dim_z, keep_prob)
     train_op = tf.train.AdamOptimizer(learn_rate).minimize(-ELBO)
 
     total_batch = int(train_size / batch_size)

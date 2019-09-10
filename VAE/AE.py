@@ -72,10 +72,6 @@ class FCVAE():
         self._z_dim = z_dim
         self._activation_func = activation_func
 
-    # @property
-    # def inputs(self):
-    #     return self._inputs
-
     @property
     def hidden_dim(self):
         return self._hidden_dim
@@ -94,7 +90,7 @@ class FCVAE():
         return self._activation_func
 
     def FCEcoder(self):
-        with tf.variable_scope('Ecnoder'):
+        with tf.variable_scope('Ecnoder', reuse=tf.compat.v1.AUTO_REUSE):
             fclayer1 = fcLayer(self.inputs, 'fclayer1', self.hidden_dim, activation_func=tf.nn.elu)#self.activation_func)
             fclayer2 = fcLayer(fclayer1, 'fclayer2', self.hidden_dim, activation_func=tf.nn.tanh)#self.activation_func)
 
@@ -103,7 +99,7 @@ class FCVAE():
             return mean, std
 
     def FCDecoder(self, z=None):
-        with tf.variable_scope('Decoder'):
+        with tf.variable_scope('Decoder', reuse=tf.compat.v1.AUTO_REUSE):
             # get samples from standard Gaussian distribution
             if z == None:
                 z = tf.random_normal((tf.shape(self.inputs)[0], self.z_dim))
@@ -113,7 +109,7 @@ class FCVAE():
 
             # mean = fcLayer(fclayer2, 'mean', self.output_dim)#, activation_func=self.activation_func)
             # std = fcLayer(fclayer2, 'std', self.output_dim, activation_func=tf.nn.softplus)
-            #
+
             # epsilon = tf.random_normal(tf.shape(mean))
             # out = tf.nn.sigmoid(mean + tf.multiply(epsilon, std))
             fclayer2 = fcLayer(fclayer2, 'output', self.output_dim, activation_func=tf.nn.sigmoid)
@@ -124,6 +120,12 @@ class FCVAE():
         epislon = tf.random_normal(tf.shape(mean))
         z = mean + tf.multiply(epislon, std)
         reconX = self.FCDecoder(z)
+        # logits = self.FCDecoder(z)
+        # alpha = tf.random_uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.float32)
+        # reconX = tf.cast(tf.less(alpha, tf.nn.sigmoid(logits)), dtype=tf.float32)
+
+        # epsilon = tf.random_normal(tf.shape(outMean))
+        # reconX = outMean + epsilon * outStd
         return reconX
 
     def _loss(self):
@@ -132,14 +134,29 @@ class FCVAE():
         z = mean + tf.multiply(epislon, std)
         out = self.FCDecoder(z)
         out = tf.clip_by_value(out, 1e-8, 1-1e-8)
-        print(out.get_shape().as_list())
+        # logits = self.FCDecoder(z)
+
+        # alpha = tf.random_uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.float32)
+        # out = tf.cast(tf.less(alpha, tf.nn.sigmoid(logits)), dtype=tf.float32)
+
+
+        # epsilon = tf.random_normal(tf.shape(outMean))
+        # out = outMean + epsilon * outStd
+
+        # print(out.get_shape().as_list())
         KL = 0.5 * tf.reduce_mean(
             tf.reduce_sum(tf.square(std)
                           + tf.square(mean)-1
                           - tf.log(tf.square(std)+1e-8), 1))
         first_term = 0.5 * tf.reduce_mean(
             tf.reduce_sum(1 + tf.log(1e-8 + tf.square(std)) - tf.square(mean) - tf.square(std), 1))
-        entropy_term = tf.losses.mean_squared_error(self.inputs, out)
+        # entropy_term = tf.losses.mean_squared_error(self.inputs, out)
+        # c = -0.5 * np.exp(2 * np.log(outStd))
+        # precision = tf.exp(-2*tf.log(outStd))
+        # entropy_term = tf.reduce_mean(c - outStd - 0.5 * precision * tf.square(out - outMean))
+        # entropy_term = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=out))
+        entropy_term = tf.reduce_mean(tf.reduce_sum(self.inputs * tf.log(out) + (1-self.inputs) * tf.log(1-out), 1))
+
         second_term = tf.reduce_mean(tf.reduce_sum(self.inputs * tf.log(out) + (1 - self.inputs) * tf.log(1 - out), 1))
 
         loss =  entropy_term - KL
