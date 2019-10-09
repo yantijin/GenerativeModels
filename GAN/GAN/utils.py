@@ -61,15 +61,15 @@ def fcLayer(inputs, name, output_num, activation_func=None):
     :param activation_func:  if exits
     '''
     with tf.variable_scope(name):
-        res = ks.layers.Dense(output_num,
-                        activation=activation_func,
-                        use_bias=True)(inputs)
-        # w = tf.get_variable('w', shape=[inputs.get_shape()[1], output_num],
-        #                     initializer=tf.contrib.layers.variance_scaling_initializer())
-        # b = tf.get_variable('b', shape=[output_num], initializer=tf.constant_initializer(0.))
-        # res = tf.matmul(inputs, w) + b
-        # if activation_func:
-        #     res = activation_func(res)
+        # res = ks.layers.Dense(output_num,
+        #                 activation=activation_func,
+        #                 use_bias=True)(inputs)
+        w = tf.get_variable('w', shape=[inputs.get_shape().as_list()[1], output_num],
+                            initializer=tf.contrib.layers.xavier_initializer())
+        b = tf.get_variable('b', shape=[output_num], initializer=tf.constant_initializer(0.))
+        res = tf.matmul(inputs, w) + b
+        if activation_func:
+            res = activation_func(res)
 
         return res
 
